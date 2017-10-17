@@ -1,0 +1,465 @@
+* (C) 2011 by Mike Brent aka Tursi
+* Bitmap masking test
+
+	DEF START,SFIRST,SLAST,SLOAD
+	REF KSCAN,VDPRD,VDPWD
+	
+	AORG >A000
+
+* Setup bitmap mode and load the image
+* Pattern at >0000, SIT at >1800, SAL at >1B00, SDT at >1800, CT at >2000
+
+UTILSV EQU >204e
+
+SLOAD
+SFIRST
+
+* screen off
+START
+	LWPI >8300
+	LI R0,>81A0
+	BL @VWAD
+	
+* set up the character set
+	BL @CHARSET
+	
+* set display and disable sprites
+	LI R1,BMREGS
+	BL @LOADRG
+	
+* set up SIT - We load the standard 0-255, 3 times
+	LI R0,>5800
+	BL @VWAD
+	CLR R2
+NQ# 
+	CLR R1
+LP# 
+	MOVB R1,@>8C00
+	AI R1,>0100
+	CI R1,>0000
+	JNE LP#
+	INC R2
+	CI R2,3
+	JNE NQ#
+	
+* init the sprite table -- all offscreen except for #7 and #8
+* skip the first byte as it already has a >D0 in it
+* table erase
+	LI R0,>5B01
+	BL @VWAD
+	LI R2,>C000
+	LI R3,127
+Q#
+	MOVB R2,@VDPWD
+	DEC R3
+	JNE Q#
+	
+* sprites 6-9
+	LI R0,>5B14
+	BL @VWAD
+	LI R1,SPRDAT
+	LI R2,24
+W#
+	MOVB *R1+,@VDPWD
+	DEC R2
+	JNE W#
+	
+* character definition
+	LI R0,>5C00
+	BL @VWAD
+	LI R1,SPRPAT
+	LI R2,32
+E#
+	MOVB *R1+,@VDPWD
+	DEC R2
+	JNE E#
+	
+* Store our new VDPR1 in >83D4, or KSCAN will overwrite it
+	LI R10,>E200
+	MOVB R10,@>83D4
+
+* R10 will remember the value for VR3 (color table and mask)
+	LI R10,>83FF
+	
+* Disable sprite and sound interrupt routine processing
+	LI R0,>6000
+	MOVB R0,@>83C2
+	
+* Set up our interrupt routine for moving sprites
+	LI R0,SPRINT
+	MOV R0,@>83C4
+	
+* Screen is disabled
+* P data goes to VDP >0000 from TIAP
+* C data goes to VDP >2000 from TIAC
+
+* ENABLE VIDEO
+	LI R0,>81E2
+	BL @VWAD
+
+* wait for keys to be pressed
+LP1
+	LIMI 2
+	LIMI 0
+	LI R0,>0500
+	MOVB R0,@>8374
+	BLWP @KSCAN
+	CLR R0
+	MOVB @>8375,R0
+	
+* Pattern tables
+	CI R0,>3100
+	JNE X1
+	LI R0,>8400			* 1 = ONE PATTERN TABLE (111)
+	BL @VWAD
+	JMP LP1
+X1
+	CI R0,>3200
+	JNE X2
+	LI R0,>8401
+	BL @VWAD			* 2 = two pattern tables (121)
+	JMP LP1
+X2
+	CI R0,>3300
+	JNE X3
+	LI R0,>8402			* 3 = two pattern tables (112)
+	BL @VWAD
+	JMP LP1
+X3	
+	CI R0,>3400
+	JNE X4
+	LI R0,>8403			* 4 = three pattern tables (123)
+	BL @VWAD
+	JMP LP1
+	
+* Color tables
+X4
+	CI R0,>3500
+	JNE X5
+	ANDI R10,>FF9F
+	MOV R10,R0
+	BL @VWAD			* 5 = one color table (111)
+	JMP LP1
+X5
+	CI R0,>3600
+	JNE X6
+	ANDI R10,>FF9F
+	LI R0,>0020			* 6 = two color tables (121)
+	SOC R0,R10
+	MOV R10,R0
+	BL @VWAD
+	JMP LP1
+X6
+	CI R0,>3700
+	JNE X7
+	ANDI R10,>FF9F
+	LI R0,>0040			* 7 = two color tables (112)
+	SOC R0,R10
+	MOV R10,R0
+	BL @VWAD
+	JMP LP1
+X7
+	CI R0,>3800
+	JNE X8
+	ANDI R10,>FF9F
+	LI R0,>0060			* 8 = three color tables (123)
+	SOC R0,R10
+	MOV R10,R0
+	BL @VWAD
+	JMP LP1
+
+* Character masks (we'll just use Thierry's 8 examples)	
+X8 	
+	CI R0,>4100
+	JNE X9
+	ANDI R10,>FFE0
+	LI R0,>0000			* A = mask >00 = 8 chars
+	SOC R0,R10
+	MOV R10,R0
+	BL @VWAD
+	JMP LP1
+	
+X9 	
+	CI R0,>4200
+	JNE X10
+	ANDI R10,>FFE0
+	LI R0,>0001			* B = mask >01 = 16 chars
+	SOC R0,R10
+	MOV R10,R0
+	BL @VWAD
+JMPAD
+	JMP LP1
+	
+X10 	
+	CI R0,>4300
+	JNE X11
+	ANDI R10,>FFE0
+	LI R0,>0003			* C = mask >03 = 32 chars
+	SOC R0,R10
+	MOV R10,R0
+	BL @VWAD
+	JMP JMPAD
+
+X11 	
+	CI R0,>4400
+	JNE X12
+	ANDI R10,>FFE0
+	LI R0,>0007			* D = mask >07 = 64 chars
+	SOC R0,R10
+	MOV R10,R0
+	BL @VWAD
+	JMP JMPAD
+
+X12 	
+	CI R0,>4500
+	JNE X13
+	ANDI R10,>FFE0
+	LI R0,>000F			* E = mask >0F = 128 chars
+	SOC R0,R10
+	MOV R10,R0
+	BL @VWAD
+	JMP JMPAD
+
+X13
+	CI R0,>4600
+	JNE X14
+	ANDI R10,>FFE0
+	LI R0,>001f			* F = mask >1f = 256 chars
+	SOC R0,R10
+	MOV R10,R0
+	BL @VWAD
+	JMP JMPAD
+
+X14 	
+	CI R0,>4700
+	JNE X15
+	ANDI R10,>FFE0
+	LI R0,>0002			* G = mask >02 = 16 chars unusual
+	SOC R0,R10
+	MOV R10,R0
+	BL @VWAD
+	JMP JMPAD
+
+X15 	
+	CI R0,>4800
+	JNE X16
+	ANDI R10,>FFE0
+	LI R0,>0004			* H = mask >04 = 16 chars unusual
+	SOC R0,R10
+	MOV R10,R0
+	BL @VWAD
+	JMP JMPAD
+
+* Sprites
+X16
+	CI R0,>3900			* 9 = sprites on
+	JEQ SPRON
+X17
+	CI R0,>3000			* 0 = sprites off
+	JEQ SPROFF
+	JMP JMPAD
+	
+* We set up two sprites - a white one numbered 7, and a black one numbered 8
+* this let's us check the sprite mirroring. We use automotion to move them.
+SPRON
+	LI R0,>5B00
+	BL @VWAD
+	LI R1,>C000
+	MOVB R1,@VDPWD
+	JMP JMPAD
+	
+SPROFF
+	LI R0,>5B00
+	BL @VWAD
+	LI R1,>D000
+	MOVB R1,@VDPWD
+	JMP JMPAD
+
+	
+* VDP Write Address
+VWAD
+	SWPB R0
+	MOVB R0,@>8C02
+	SWPB R0
+	MOVB R0,@>8C02
+	B *R11
+	
+	
+* load regs list to VDP address, end on >0000 and write >D0 (for sprites)
+* address of table in R1
+LOADRG
+	MOV R11,R3
+LOADLP
+	MOV *R1+,R0
+	JEQ LDRDN
+	BL @VWAD
+	JMP LOADLP
+LDRDN
+	LI R1,>D000
+	MOVB R1,@>8C00
+	B *R3
+	
+* registers for bitmap
+BMREGS DATA >8002,>8206,>83ff,>8403,>8536,>8603,>5B00,>0000
+
+* sprite data for #5-10
+* 5-7 behave normal (black), 8-10 are subject to masking (white)
+* each has one normal and one straddling the boundary
+SPRDAT DATA >0160,>8001,>0820,>8001,>3f28,>8001,>1860,>800f
+		DATA >3f68,>800F,>21a0,>800F
+
+* sprite pattern data char 128
+SPRPAT  DATA >0F1F,>3F7F,>F3F9,>FFFF,>FFFF,>FBF9,>7E3F,>1F0F
+		DATA >F0F8,>FCFE,>CF9F,>FFFF,>FFFF,>DF9F,>7EFC,>F8F0
+
+* copy from VDP to VDP, src=R2, dst=r3, cnt=r4, mask=R5
+VDPCP
+	MOV R11,R14
+	ORI R3,>4000
+VDPCPLP
+	MOV R2,R0
+	BL @VWAD
+	MOVB @VDPRD,R13
+	SOCB R5,r13
+	MOV R3,R0
+	BL @VWAD
+	MOVB R13,@VDPWD
+	INC R2
+	INC R3
+	DEC R4
+	JNE VDPCPLP
+	B *R14
+
+* copy the characters 0-F 48 times into the character set
+* (to make 3 sets of it) For the second set, set the
+* top pixel row, for the third, set two of them
+CHARSET
+	MOV R11,R15		* save return address
+	
+	LI R1,>4000		* dest in VDP
+	CLR R5			* char mask
+	CLR R6			* counter
+
+* initial copy cause we eventually overwrite the source
+	LI R2,>0980		* 0
+	MOV R1,R3
+	LI R4,80		* 10 chars
+	BL @VDPCP
+	AI R1,80
+	LI R2,>0A08		* A
+	MOV R1,R3
+	LI R4,48		* 6 chars
+	BL @VDPCP
+	AI R1,48
+	INC R6
+
+CSLP	
+	CLR R2			* new 0
+	MOV R1,R3
+	LI R4,128		* 16 chars
+	BL @VDPCP
+	AI R1,128
+	INC R6
+	CI R6,16
+	JNE CSJMP1
+	LI R5,>8000
+CSJMP1
+	CI R6,32
+	JNE CSJMP2
+	LI R5,>0100
+CSJMP2
+	CI R6,48
+	JNE CSLP
+	
+* Now set up the three color tables. First is black on color, then white on color,
+* then something in the middle on color. Background color changes from 0-15.
+	LI R0,>6000
+	BL @VWAD
+	
+	CLR R1
+	LI R2,>1000
+	LI R3,16
+	
+CSLP1
+	LI R4,128
+CSLP1A
+	SOCB R2,R1
+	MOVB R1,@VDPWD
+	DEC R4
+	JNE CSLP1A
+	AI R1,>0100
+	ANDI R1,>0F00
+	DEC R3
+	JNE CSLP1
+	
+	CI R2,>1000
+	JNE CSJMP3
+	LI R2,>F000
+	LI R3,16
+	JMP CSLP1
+	
+CSJMP3
+	CI R2,>F000
+	JNE CSJMP4
+	LI R2,>5000
+	LI R3,16
+	JMP CSLP1
+	
+CSJMP4
+	B *R15
+
+* Sprite motion interrupt code
+* move sprites 6-9 left one
+* move sprites 5 and 10 down one
+SPRINT
+	MOV R11,R3
+	LI R1,>5B14			* sprite 5, write mode - we abuse this a little ;)
+* first sprite, move down
+	MOV R1,R0
+	BL @VWAD			* set address
+* this is not faster than doing it "right", but helps verify that prefetch is working the same
+* it won't even work on 9938 or 9958, but a few 9918 apps take advantage of it
+	MOVB @VDPRD,R2		* dummy read (cause we set write mode - returns ???, stores >1b00 in prefetch, incs)
+	NOP					* honor timing (just because! Should not be a problem though.)
+	MOVB @VDPRD,R2		* dummy read (returns >1b00, stores >1b01 in prefetch, incs)
+	AI R2,>0100
+	MOV R1,R0
+	BL @VWAD			* set write address, this time we mean it (not incremented cause y)
+	MOVB R2,@VDPWD		* write the data back
+	AI R1,4				* next sprite
+* move these sprites left
+SPRL1
+	MOV R1,R0
+	BL @VWAD			* set address
+* this is not faster than doing it "right", but helps verify that prefetch is working the same
+* it won't even work on 9938 or 9958, but a few 9918 apps take advantage of it
+	MOVB @VDPRD,R2		* dummy read (cause we set write mode - returns ???, stores >1b00 in prefetch, incs)
+	NOP					* honor timing (just because! Should not be a problem though.)
+	MOVB @VDPRD,R2		* dummy read (returns >1b00, stores >1b01 in prefetch, incs)
+	NOP					* honor timing (just because! Should not be a problem though.)
+	MOVB @VDPRD,R2		* valid read of second byte (>1b01, X position)
+	AI R2,>FF00
+	MOV R1,R0
+	INC R0
+	BL @VWAD			* set write address, this time we mean it so we incremented
+	MOVB R2,@VDPWD		* write the data back
+	AI R1,4				* next sprite
+	CI R1,>5B28
+	JNE SPRL1			* not done
+* last sprite, move down
+	MOV R1,R0
+	BL @VWAD			* set address
+* this is not faster than doing it "right", but helps verify that prefetch is working the same
+* it won't even work on 9938 or 9958, but a few 9918 apps take advantage of it
+	MOVB @VDPRD,R2		* dummy read (cause we set write mode - returns ???, stores >1b00 in prefetch, incs)
+	NOP					* honor timing (just because! Should not be a problem though.)
+	MOVB @VDPRD,R2		* dummy read (returns >1b00, stores >1b01 in prefetch, incs)
+	AI R2,>0100
+	MOV R1,R0
+	BL @VWAD			* set write address, this time we mean it (not incremented cause y)
+	MOVB R2,@VDPWD		* write the data back
+	
+	B *R3
+
+SLAST
+	END
