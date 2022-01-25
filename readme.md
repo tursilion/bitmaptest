@@ -1,5 +1,8 @@
-Effects can be stacked, of course. Each key changes ONLY the
-register or mask listed below.
+20130519
+
+A tool to test the normal layout, and some special layouts for the 9918A bitmap mode on the TI-99/4A.
+
+Effects can be stacked, of course. Each key changes ONLY the register or mask listed below.
 
 KEY EFFECT               Reg     Order of character sets on screen
 
@@ -28,7 +31,5 @@ H - 16 chars unusual    (mask 04)
 Character and table masks are both in register 3.
 The character count is per pattern table.
 
-Sprites lay out 6 sprites, 5-10. Sprites move vertically and horizontally
-so that effects can be observed. In each of the groups 5-7 (no effect from
-masking) and 8-10 (are affected by masking), two move horizontally (one
-fully within the zone and one straddling a boundary) and one moves vertically.
+Sprites lay out 6 sprites, 5-10. Sprites move vertically and horizontally so that effects can be observed. In each of the groups 5-7 (no effect from masking) and 8-10 (are affected by masking), two move horizontally (one fully within the zone and one straddling a boundary) and one moves vertically.
+
